@@ -5,8 +5,9 @@ namespace App\Repository;
 use App\Entity\Review;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\OptimisticLockException;
-use Doctrine\ORM\ORMException;
 use Doctrine\Persistence\ManagerRegistry;
+
+use function PHPUnit\Framework\throwException;
 
 /**
  * @method Review|null find($id, $lockMode = null, $lockVersion = null)
@@ -48,29 +49,53 @@ class ReviewRepository extends ServiceEntityRepository
     // /**
     //  * @return Review[] Returns an array of Review objects
     //  */
-    /*
-    public function findByExampleField($value)
-    {
-        return $this->createQueryBuilder('r')
-            ->andWhere('r.exampleField = :val')
-            ->setParameter('val', $value)
-            ->orderBy('r.id', 'ASC')
-            ->setMaxResults(10)
-            ->getQuery()
-            ->getResult()
-        ;
-    }
-    */
 
-    /*
-    public function findOneBySomeField($value): ?Review
+    public function findByHotelId($hotel_id, $start, $end)
     {
-        return $this->createQueryBuilder('r')
-            ->andWhere('r.exampleField = :val')
-            ->setParameter('val', $value)
-            ->getQuery()
-            ->getOneOrNullResult()
-        ;
+        if (strtotime($start) === false || strtotime($end) === false )
+        {
+            throw new \InvalidArgumentException('Wrong date format provided');
+        }
+            $start_date = date_create($start);
+            $end_date = date_create($end);
+
+            $from = new \DateTime($start_date->format("Y-m-d")." 00:00:00");
+            $to = new \DateTime($end_date->format("Y-m-d")." 23:59:59");
+
+            $date_range_in_days = date_diff($from, $to)->days;
+
+
+
+        $query = $this->createQueryBuilder('r');
+
+        switch ($date_range_in_days) {
+            case $date_range_in_days > 89 :
+                $query->select(
+                    'count(r.score) as review_count, avg(r.score) as average_score,Month(r.created_at) AS date_range'
+                );
+                break;
+            case $date_range_in_days > 29:
+                $query->select(
+                    'count(r.score) as review_count, avg(r.score) as average_score,Week(r.created_at) AS date_range'
+                );
+                break;
+            case $date_range_in_days >= 0:
+                $query->select(
+                    'count(r.score) as review_count, avg(r.score) as average_score,Day(r.created_at) AS date_range'
+                );
+                break;
+        }
+        // This will return date range as the number of the day/week/month being processed,
+        // this can be further enhanced depending on requirements
+        $query->Where('r.created_at BETWEEN :from and :to')
+            ->andWhere('r.hotel_id = :hotel_id')
+            ->setParameter('from', $from)
+            ->setParameter('to', $to)
+            ->setParameter('hotel_id', $hotel_id)
+            ->groupBy('date_range');
+
+        return ($query->getQuery()->getResult());
     }
-    */
+
+
 }
